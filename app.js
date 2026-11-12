@@ -1,7 +1,7 @@
 'use strict';
 /* Reelox Admin app. Talks to the Apps Script server (actions starting with "admin."). */
 const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
-const VERSION = '1.1.1';
+const VERSION = '1.1.2';
 const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 /* ---------- tiny helpers ---------- */
@@ -222,7 +222,7 @@ function vHome() {
       '<button type="button" data-act="go" data-href="#/attendance?leaves"><span class="q">' + ic('cal') + (d.pendingLeaves ? '<span class="badge">' + d.pendingLeaves + '</span>' : '') + '</span>Leaves</button>' +
       '<button type="button" data-act="announce"><span class="q">' + ic('mega') + '</span>Announce</button></div>';
     h += '<div class="grid2"><div class="stack">';
-    h += '<section class="card"><div class="row between" style="margin-bottom:4px"><h2 class="h">Due today</h2><a href="#/tasks">See all</a></div>' +
+    h += '<section class="card"><div class="row between" style="margin-bottom:4px"><h2 class="h">Due today</h2><a class="seeall" href="#/tasks">See all</a></div>' +
       (d.due.length ? d.due.map((x) => '<div class="list-row"><div class="grow"><div class="strong ellipsis">' + esc(x.title) + '</div><div class="sub ellipsis">' + esc([x.client, x.who].filter(Boolean).join(' · ')) + '</div></div><span class="pill ' + (x.overdue ? 'bad' : 'late') + '">' + (x.overdue ? x.daysLate + (x.daysLate === 1 ? ' day' : ' days') + ' late' : 'Due today') + '</span></div>').join('') : '<p class="sub" style="margin:8px 0 0">Nothing due today.</p>') + '</section>';
     h += '<a class="card row between" href="#/money" style="color:inherit"><div><div class="k">Profit this month</div><div class="v ' + (d.money.profit < 0 ? 't-bad' : '') + '">' + pkr(d.money.profit) + '</div><div class="sub">In ' + short(d.money.in) + ' · Out ' + short(d.money.out) + '</div></div>' + spark(d.money.spark) + '</a>';
     h += '</div><section class="card tight" aria-label="Team today"><div class="h" style="padding:12px 0 4px">Team today</div>' + t.rows.map((r) => '<div class="list-row"><span class="av">' + esc(r.initials) + '</span><div class="grow"><div class="strong ellipsis">' + esc(r.name) + '</div><div class="sub ellipsis">' + esc(r.task || (r.kind === 'wait' ? 'No check-in yet' : r.kind === 'absent' ? 'Did not check in' : '')) + '</div></div><span class="pill ' + r.kind + '">' + esc(r.status) + '</span></div>').join('') + '</section></div>';
