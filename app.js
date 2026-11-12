@@ -1,7 +1,7 @@
 'use strict';
 /* Reelox Admin app. Talks to the Apps Script server (actions starting with "admin."). */
 const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
-const VERSION = '1.1.3';
+const VERSION = '1.1.4';
 const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 /* ---------- tiny helpers ---------- */
@@ -97,7 +97,8 @@ function toast(msg, actionLabel, onAction, ms) {
 /* ---------- sheets (bottom sheets / dialogs) ---------- */
 let sheetReturnFocus = null;
 function openSheet(title, inner, onMount) {
-  closeSheet();
+  closeSheet(true);
+  try { if (!(history.state && history.state.sheet)) history.pushState({ sheet: 1 }, ''); } catch (e) { /* ignore */ }
   sheetReturnFocus = document.activeElement;
   const s = document.createElement('div');
   s.className = 'scrim';
@@ -112,10 +113,15 @@ function openSheet(title, inner, onMount) {
   if (first) setTimeout(() => first.focus(), 30);
   return s.querySelector('.sheet');
 }
-function closeSheet() {
+function closeSheet(keepHistory) {
   const s = $('#sheet');
-  if (s) { s.remove(); if (sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus(); }
+  if (s) {
+    s.remove();
+    if (!keepHistory && history.state && history.state.sheet) { try { history.back(); } catch (e) { /* ignore */ } }
+    if (sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus();
+  }
 }
+window.addEventListener('popstate', () => { if ($('#sheet')) closeSheet(true); });
 function busy(btn, on, label) {
   if (!btn) return;
   if (on) { btn.dataset.label = btn.innerHTML; btn.disabled = true; btn.textContent = label || 'Saving...'; }
@@ -194,7 +200,7 @@ function route() {
   const sideKey = { home: 'home', attendance: 'cal', money: 'money', team: 'team', payroll: 'team', tasks: 'tasks', reports: 'chart' }[base] || 'more';
   $$('.tabbar a').forEach((a) => { if (a.dataset.k === tabKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   $$('.side a').forEach((a) => { if (a.dataset.k === sideKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-  closeSheet();
+  closeSheet(true);
   const views = { home: vHome, attendance: vAttendance, money: vMoney, team: parts[1] ? () => vEditor(parts[1]) : vTeam, payroll: vPayroll, more: vMore, tasks: vTasks, plan: vPlan, reports: vReports, alerts: vAlerts, settings: vSettings };
   (views[base] || vHome)();
   window.scrollTo(0, 0);
@@ -340,12 +346,13 @@ function addMoneySheet(type, preset) {
   const draw = () => {
     const isIn = st.type === 'In';
     const cats = isIn ? lists.in : lists.out;
+    const cl = st.client && lists.clients.indexOf(st.client) === -1 ? lists.clients.concat([st.client]) : lists.clients;
     return '<div class="seg" role="group" aria-label="Type"><button type="button" aria-pressed="' + !isIn + '" data-t="Out">Money out</button><button type="button" aria-pressed="' + isIn + '" data-t="In">Money in</button></div>' +
       '<div><div class="row between"><span class="sub strong">Amount</span><div class="seg" role="group" aria-label="Currency" style="padding:2px"><button type="button" style="height:36px;padding:0 14px" aria-pressed="' + (st.currency === 'PKR') + '" data-c="PKR">PKR</button><button type="button" style="height:36px;padding:0 14px" aria-pressed="' + (st.currency === 'USD') + '" data-c="USD">USD</button></div></div>' +
       '<label class="amount" style="margin-top:8px"><span>' + (st.currency === 'USD' ? '$' : 'Rs') + '</span><input id="mAmount" inputmode="decimal" autocomplete="off" aria-label="Amount" placeholder="0" value="' + esc(st.amount || '') + '"></label></div>' +
       (st.currency === 'USD' ? '<div class="row between card" style="padding:12px;border-radius:12px;box-shadow:none;background:var(--surface-2)"><div><div class="sub">Rate</div><div class="strong">1 USD = Rs <input id="mRate" inputmode="decimal" aria-label="Rate" style="width:88px;height:36px;border:0;border-bottom:1px solid var(--line-2);background:transparent;font-weight:500;font-size:16px;color:var(--ink)" value="' + esc(st.rate || '') + '"></div></div><div style="text-align:right"><div class="sub">You get</div><div class="strong t-ok" id="mGet">–</div></div></div>' : '') +
       '<div><div class="sub strong" style="margin-bottom:8px">' + (isIn ? 'Category' : 'Category') + '</div><div class="chips" role="group" aria-label="Category">' + cats.map((c) => '<button type="button" class="chip" data-cat="' + esc(c) + '" aria-pressed="' + (st.category === c) + '">' + esc(c) + '</button>').join('') + '</div></div>' +
-      (isIn ? (lists.clients.length ? '<div><div class="sub strong" style="margin-bottom:8px">Client</div><div class="chips" role="group" aria-label="Client">' + lists.clients.map((c) => '<button type="button" class="chip" data-cl="' + esc(c) + '" aria-pressed="' + (st.client === c) + '">' + esc(c) + '</button>').join('') + '</div></div>' : '')
+      (isIn ? (cl.length ? '<div><div class="sub strong" style="margin-bottom:8px">Client</div><div class="chips" role="group" aria-label="Client">' + cl.map((c) => '<button type="button" class="chip" data-cl="' + esc(c) + '" aria-pressed="' + (st.client === c) + '">' + esc(c) + '</button>').join('') + '</div></div>' : '')
         : '<div class="seg" role="group" aria-label="Office or personal"><button type="button" aria-pressed="' + (st.scope === 'Office') + '" data-s="Office">Office</button><button type="button" aria-pressed="' + (st.scope === 'Personal') + '" data-s="Personal">Personal</button></div>') +
       '<div class="row">' + (st.receipt ? '<img src="' + st.receipt.preview + '" alt="Receipt" style="width:88px;height:88px;object-fit:cover;border-radius:8px;flex:none">' : '') +
       '<label class="btn sec grow" style="height:88px;flex-direction:column;border-style:dashed;cursor:pointer">' + ic('cam') + (st.receipt ? 'Change photo' : 'Take or attach a receipt') + '<input type="file" accept="image/*" capture="environment" id="mFile" class="hidden"></label></div>' +
@@ -392,6 +399,9 @@ function addMoneySheet(type, preset) {
       } catch (ex) { busy(b, false); err.textContent = ex instanceof OfflineError ? 'You’re offline. Connect and try again.' : ex.message; }
     }
   });
+  if (st.currency === 'USD' && !st.rate) {
+    (async () => { try { const r = store.get('rate'); if (r && Date.now() - r.t < 6 * 3600 * 1000) st.rate = r.rate; else { const j = await api('rate'); st.rate = j.rate; store.set('rate', { rate: j.rate, t: Date.now() }); } } catch (err) { st.rate = 280; } if ($('#mBody', sheet)) redraw(); })();
+  }
   if (st.currency === 'USD') calc();
 }
 function moneyItemSheet(row) {
@@ -686,7 +696,8 @@ function loadScript(src) {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Couldn’t load the notification service. Check your internet.')); document.head.appendChild(s); });
 }
 async function enablePush() {
-  const perm = await Notification.requestPermission();
+  const perm = await Promise.race([Notification.requestPermission(), new Promise((r) => setTimeout(() => r('timeout'), 60000))]);
+  if (perm === 'timeout') throw new Error('No answer from the permission prompt. Try again.');
   if (perm !== 'granted') throw new Error('Notifications weren’t allowed.');
   const cfg = await api('pushConfig');
   if (!cfg.ready) throw new Error('Notifications aren’t set up on the server yet.');
