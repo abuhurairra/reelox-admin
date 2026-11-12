@@ -1,7 +1,7 @@
 'use strict';
 /* Reelox Admin app. Talks to the Apps Script server (actions starting with "admin."). */
 const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
-const VERSION = '1.1.2';
+const VERSION = '1.1.3';
 const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 /* ---------- tiny helpers ---------- */
@@ -341,9 +341,9 @@ function addMoneySheet(type, preset) {
     const isIn = st.type === 'In';
     const cats = isIn ? lists.in : lists.out;
     return '<div class="seg" role="group" aria-label="Type"><button type="button" aria-pressed="' + !isIn + '" data-t="Out">Money out</button><button type="button" aria-pressed="' + isIn + '" data-t="In">Money in</button></div>' +
-      '<div><div class="row between"><span class="sub strong">Amount</span><div class="seg" role="group" aria-label="Currency" style="padding:2px"><button type="button" style="height:28px;padding:0 12px" aria-pressed="' + (st.currency === 'PKR') + '" data-c="PKR">PKR</button><button type="button" style="height:28px;padding:0 12px" aria-pressed="' + (st.currency === 'USD') + '" data-c="USD">USD</button></div></div>' +
+      '<div><div class="row between"><span class="sub strong">Amount</span><div class="seg" role="group" aria-label="Currency" style="padding:2px"><button type="button" style="height:36px;padding:0 14px" aria-pressed="' + (st.currency === 'PKR') + '" data-c="PKR">PKR</button><button type="button" style="height:36px;padding:0 14px" aria-pressed="' + (st.currency === 'USD') + '" data-c="USD">USD</button></div></div>' +
       '<label class="amount" style="margin-top:8px"><span>' + (st.currency === 'USD' ? '$' : 'Rs') + '</span><input id="mAmount" inputmode="decimal" autocomplete="off" aria-label="Amount" placeholder="0" value="' + esc(st.amount || '') + '"></label></div>' +
-      (st.currency === 'USD' ? '<div class="row between card" style="padding:12px;border-radius:12px;box-shadow:none;background:var(--surface-2)"><div><div class="sub">Rate</div><div class="strong">1 USD = Rs <input id="mRate" inputmode="decimal" aria-label="Rate" style="width:72px;border:0;background:transparent;font-weight:500;color:var(--ink)" value="' + esc(st.rate || '') + '"></div></div><div style="text-align:right"><div class="sub">You get</div><div class="strong t-ok" id="mGet">–</div></div></div>' : '') +
+      (st.currency === 'USD' ? '<div class="row between card" style="padding:12px;border-radius:12px;box-shadow:none;background:var(--surface-2)"><div><div class="sub">Rate</div><div class="strong">1 USD = Rs <input id="mRate" inputmode="decimal" aria-label="Rate" style="width:88px;height:36px;border:0;border-bottom:1px solid var(--line-2);background:transparent;font-weight:500;font-size:16px;color:var(--ink)" value="' + esc(st.rate || '') + '"></div></div><div style="text-align:right"><div class="sub">You get</div><div class="strong t-ok" id="mGet">–</div></div></div>' : '') +
       '<div><div class="sub strong" style="margin-bottom:8px">' + (isIn ? 'Category' : 'Category') + '</div><div class="chips" role="group" aria-label="Category">' + cats.map((c) => '<button type="button" class="chip" data-cat="' + esc(c) + '" aria-pressed="' + (st.category === c) + '">' + esc(c) + '</button>').join('') + '</div></div>' +
       (isIn ? (lists.clients.length ? '<div><div class="sub strong" style="margin-bottom:8px">Client</div><div class="chips" role="group" aria-label="Client">' + lists.clients.map((c) => '<button type="button" class="chip" data-cl="' + esc(c) + '" aria-pressed="' + (st.client === c) + '">' + esc(c) + '</button>').join('') + '</div></div>' : '')
         : '<div class="seg" role="group" aria-label="Office or personal"><button type="button" aria-pressed="' + (st.scope === 'Office') + '" data-s="Office">Office</button><button type="button" aria-pressed="' + (st.scope === 'Personal') + '" data-s="Personal">Personal</button></div>') +
