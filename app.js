@@ -1,7 +1,7 @@
 'use strict';
 /* Reelox Admin app. Talks to the Apps Script server (actions starting with "admin."). */
 const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 /* ---------- tiny helpers ---------- */
@@ -209,7 +209,7 @@ function vHome() {
     const pct = t.total ? t.present / t.total : 0;
     const C = 2 * Math.PI * 40;
     const greet = d.mins < 720 ? 'Good morning' : d.mins < 1020 ? 'Good afternoon' : 'Good evening';
-    let h = topBar(greet + ', ' + (store.get('ownerName') || 'Abu'), d.label.replace(/,.*$/, '') + ', ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }),
+    let h = topBar(greet + ', ' + (store.get('ownerName') || 'Abu'), new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
       '<a class="iconbtn" href="#/alerts" aria-label="Alerts">' + ic('bell') + '</a>');
     h += '<section class="hero row" style="gap:16px" aria-label="Live attendance"><div class="ring"><svg viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-track)" stroke-width="10"/><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring)" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + (C * pct).toFixed(1) + ' ' + C.toFixed(1) + '"/></svg><div class="c"><div class="v">' + t.present + '/' + t.total + '</div><div style="font-size:12px;opacity:.85">in office</div></div></div>' +
       '<div class="stack" style="gap:4px"><div class="h">Live attendance</div><div style="font-size:14px;opacity:.9">' + onTime + ' on time · ' + t.late + ' late · ' + t.notIn + ' not in yet</div><div style="font-size:12px;opacity:.75">' + (t.workday ? 'Office opens ' + fmtMins(d.start) : 'Today is a day off') + '</div></div></section>';
@@ -260,7 +260,7 @@ function vAttendance() {
     });
     const sel = att.day ? d.days.find((x) => x.d === att.day) : null;
     const word = { ok: 'On time', late: 'Late', absent: 'Absent', leave: 'On leave', off: 'Day off', wait: 'Not in yet', none: 'Not counted', future: '' };
-    let h = names + '<section class="card"><div class="row between" style="margin-bottom:12px"><h2 class="h">' + esc(monthLabel(d.month)) + '</h2>' + monthNav(d.month, 'attMonth') + '</div>' +
+    let h = names + '<section class="card"><div class="row" style="justify-content:center;margin-bottom:12px">' + monthNav(d.month, 'attMonth') + '</div>' +
       '<div class="cal-head" aria-hidden="true"><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div><div>S</div></div><div class="cal">' + cal + '</div>' +
       '<div class="legend wrap"><span><i style="background:#17A05D"></i>On time</span><span><i style="background:#E8892B"></i>Late</span><span><i style="background:#E5484D"></i>Absent</span><span><i style="background:#5B8DEF"></i>Leave</span></div></section>';
     if (sel) h += '<section class="card"><div class="row between"><div class="h">' + esc(dayLabel(sel.date)) + '</div><span class="pill ' + sel.st + '">' + esc(word[sel.st] || '') + '</span></div>' +
@@ -306,7 +306,7 @@ function drawInvoices(d) {
   d.list.forEach((i) => {
     const st = i.paid ? ['ok', 'Paid ' + dayLabel(i.paidOn)] : i.days === null ? ['grey', 'No due date'] : i.days < 0 ? ['bad', 'Overdue ' + (-i.days) + (i.days === -1 ? ' day' : ' days')] : i.days === 0 ? ['late', 'Due today'] : ['late', 'Due in ' + i.days + (i.days === 1 ? ' day' : ' days')];
     h += '<section class="card"><div class="row between" style="align-items:flex-start"><div style="min-width:0"><div class="strong">' + esc(i.client) + '</div><div class="sub">' + esc(i.no + (i.desc ? ' · ' + i.desc : '')) + '</div></div><span class="pill ' + st[0] + '">' + esc(st[1]) + '</span></div>' +
-      '<div class="row between" style="margin-top:8px"><div><span class="v">' + (i.currency === 'USD' ? usd(i.amount) : pkr(i.amount)) + '</span>' + (i.currency === 'USD' ? ' <span class="sub">' + pkr(i.pkr) + '</span>' : '') + '</div>' +
+      '<div class="row between" style="margin-top:8px"><div><div class="v">' + (i.currency === 'USD' ? usd(i.amount) : pkr(i.amount)) + '</div>' + (i.currency === 'USD' ? '<div class="sub">' + pkr(i.pkr) + '</div>' : '') + '</div>' +
       (i.paid ? '' : '<div class="row" style="gap:8px"><button type="button" class="btn sec" data-act="remind" data-row="' + i.row + '">' + ic('send') + 'Remind</button><button type="button" class="btn pri" data-act="invoicePaid" data-row="' + i.row + '">Paid</button></div>') + '</div></section>';
   });
   return h;
@@ -633,7 +633,7 @@ function vSettings() {
     '<section class="card tight"><div class="list-row"><span class="ibox">' + ic('lock') + '</span><div class="grow"><div class="strong">App lock</div><div class="sub">' + (hasPin ? 'On · locks after 2 minutes away' : 'Off · anyone with your phone can open it') + '</div></div><button type="button" class="btn sec" data-act="setPin">' + (hasPin ? 'Change PIN' : 'Set PIN') + '</button></div>' +
     (hasPin && window.PublicKeyCredential ? '<div class="list-row"><span class="ibox">' + ic('finger') + '</span><div class="grow"><div class="strong">Fingerprint or face</div><div class="sub">Unlock without typing the PIN</div></div><button type="button" class="switch" role="switch" aria-checked="' + bio + '" aria-label="Fingerprint unlock" data-act="bio"></button></div>' : '') +
     (hasPin ? '<div class="list-row"><span class="grow sub">Turn the lock off</span><button type="button" class="btn sec" data-act="removePin">Remove PIN</button></div>' : '') + '</section>' +
-    (standalone ? '' : '<section class="card row"><span class="ibox">' + ic('install') + '</span><div class="grow"><div class="strong">Install the app</div><div class="sub">' + (installEvt ? 'Adds Reelox Admin to your home screen or Start menu' : 'In Chrome: menu ⋮ → Install app (or Add to Home screen)') + '</div></div>' + (installEvt ? '<button type="button" class="btn pri" data-act="install">Install</button>' : '') + '</section>') +
+    (standalone ? '' : '<section class="card row"><span class="ibox">' + ic('install') + '</span><div class="grow"><div class="strong">Install the app</div><div class="sub">' + (installEvt ? 'Adds Reelox Admin to your home screen or Start menu' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari: tap Share → Add to Home Screen. Needed for notifications on iPhone.' : 'In Chrome: menu ⋮ → Install app (or Add to Home screen)') + '</div></div>' + (installEvt ? '<button type="button" class="btn pri" data-act="install">Install</button>' : '') + '</section>') +
     pushRow() +
     '<button type="button" class="btn danger block" data-act="signOut">Sign out</button><p class="sub" style="text-align:center;margin:0">Reelox Admin ' + VERSION + '</p>');
 }
@@ -679,7 +679,7 @@ function pushRow() {
   const on = ok && Notification.permission === 'granted' && store.get('pushOn');
   const blocked = ok && Notification.permission === 'denied';
   return '<section class="card row"><span class="ibox">' + ic('bell') + '</span><div class="grow"><div class="strong">Notifications on this device</div><div class="sub">' +
-    (!ok ? 'This browser can’t show notifications. Install the app first.' : blocked ? 'Blocked. Allow notifications for this app in your phone or browser settings.' : on ? 'On · late, absent, overdue, payments and more' : 'Off · turn on to get alerts like WhatsApp') + '</div></div>' +
+    (!ok ? (/iPhone|iPad/.test(navigator.userAgent) ? 'On iPhone: add the app to your Home Screen from Safari, then open it from there.' : 'This browser can’t show notifications. Install the app first.') : blocked ? 'Blocked. Allow notifications for this app in your phone or browser settings.' : on ? 'On · late, absent, overdue, payments and more' : 'Off · turn on to get alerts like WhatsApp') + '</div></div>' +
     (ok && !blocked ? (on ? '<button type="button" class="btn sec" data-act="pushTest">Test</button>' : '<button type="button" class="btn pri" data-act="pushOn">Turn on</button>') : '') + '</section>';
 }
 function loadScript(src) {
