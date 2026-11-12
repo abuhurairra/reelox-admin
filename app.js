@@ -1,7 +1,7 @@
 'use strict';
 /* Reelox Admin app. Talks to the Apps Script server (actions starting with "admin."). */
 const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 /* ---------- tiny helpers ---------- */
@@ -634,7 +634,7 @@ function vSettings() {
     (hasPin && window.PublicKeyCredential ? '<div class="list-row"><span class="ibox">' + ic('finger') + '</span><div class="grow"><div class="strong">Fingerprint or face</div><div class="sub">Unlock without typing the PIN</div></div><button type="button" class="switch" role="switch" aria-checked="' + bio + '" aria-label="Fingerprint unlock" data-act="bio"></button></div>' : '') +
     (hasPin ? '<div class="list-row"><span class="grow sub">Turn the lock off</span><button type="button" class="btn sec" data-act="removePin">Remove PIN</button></div>' : '') + '</section>' +
     (standalone ? '' : '<section class="card row"><span class="ibox">' + ic('install') + '</span><div class="grow"><div class="strong">Install the app</div><div class="sub">' + (installEvt ? 'Adds Reelox Admin to your home screen or Start menu' : 'In Chrome: menu ⋮ → Install app (or Add to Home screen)') + '</div></div>' + (installEvt ? '<button type="button" class="btn pri" data-act="install">Install</button>' : '') + '</section>') +
-    '<section class="card row"><span class="ibox">' + ic('bell') + '</span><div class="grow"><div class="strong">Phone notifications</div><div class="sub">Coming in the next update</div></div></section>' +
+    pushRow() +
     '<button type="button" class="btn danger block" data-act="signOut">Sign out</button><p class="sub" style="text-align:center;margin:0">Reelox Admin ' + VERSION + '</p>');
 }
 async function sha(s) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('reelox|' + s)); return Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, '0')).join(''); }
@@ -671,6 +671,36 @@ async function bioCheck() {
   const id = store.get('bioId'); if (!id) return false;
   await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: 'public-key', id: b64.dec(id) }], userVerification: 'required', timeout: 60000 } });
   return true;
+}
+
+/* ---------- NOTIFICATIONS (Firebase Cloud Messaging) ---------- */
+function pushRow() {
+  const ok = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+  const on = ok && Notification.permission === 'granted' && store.get('pushOn');
+  const blocked = ok && Notification.permission === 'denied';
+  return '<section class="card row"><span class="ibox">' + ic('bell') + '</span><div class="grow"><div class="strong">Notifications on this device</div><div class="sub">' +
+    (!ok ? 'This browser can’t show notifications. Install the app first.' : blocked ? 'Blocked. Allow notifications for this app in your phone or browser settings.' : on ? 'On · late, absent, overdue, payments and more' : 'Off · turn on to get alerts like WhatsApp') + '</div></div>' +
+    (ok && !blocked ? (on ? '<button type="button" class="btn sec" data-act="pushTest">Test</button>' : '<button type="button" class="btn pri" data-act="pushOn">Turn on</button>') : '') + '</section>';
+}
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Couldn’t load the notification service. Check your internet.')); document.head.appendChild(s); });
+}
+async function enablePush() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('Notifications weren’t allowed.');
+  const cfg = await api('pushConfig');
+  if (!cfg.ready) throw new Error('Notifications aren’t set up on the server yet.');
+  if (!window.firebase) {
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+  }
+  if (!firebase.apps.length) firebase.initializeApp(cfg.config);
+  const reg = await navigator.serviceWorker.ready;
+  const token = await firebase.messaging().getToken({ vapidKey: cfg.vapid, serviceWorkerRegistration: reg });
+  if (!token) throw new Error('This device didn’t give a notification token.');
+  const ua = navigator.userAgent;
+  await api('pushRegister', { pushToken: token, device: /Android/.test(ua) ? 'Android phone' : /iPhone|iPad/.test(ua) ? 'iPhone' : /Windows/.test(ua) ? 'Windows PC' : 'Device' });
+  store.set('pushOn', true);
 }
 
 /* ---------- LOCK and LOGIN screens ---------- */
@@ -768,6 +798,8 @@ const ACT = {
   report: async (el) => { const w = window.open('', '_blank'); busy(el, true, 'Making PDF...'); try { const j = await api('report', { month: rep.month }); busy(el, false); if (w) w.location = j.url; else location.href = j.url; } catch (ex) { if (w) w.close(); busy(el, false); toast(ex.message); } },
   export: async (el) => { const parts = Object.keys(rep.parts).filter((k) => rep.parts[k]); if (!parts.length) { toast('Pick at least one.'); return; } const w = window.open('', '_blank'); busy(el, true, 'Exporting...'); try { const j = await api('exportXlsx', { month: rep.month, parts: parts }); busy(el, false); if (w) w.location = j.url; else location.href = j.url; } catch (ex) { if (w) w.close(); busy(el, false); toast(ex.message); } },
   theme: (el) => { store.set('theme', el.dataset.v); applyTheme(); vSettings(); },
+  pushOn: async (el) => { busy(el, true, 'Turning on...'); try { await enablePush(); toast('Notifications are on'); } catch (ex) { toast(ex.message); } vSettings(); },
+  pushTest: async (el) => { busy(el, true, 'Sending...'); try { const j = await api('pushTest'); toast(j.sent ? 'Test sent. Check your notifications.' : 'No device is registered yet.'); } catch (ex) { toast(ex.message); } busy(el, false); },
   setPin: () => pinSheet(),
   removePin: async () => { if (!(await confirmSheet('Turn the lock off?', 'Anyone with this device could open the app.', 'Turn off', true))) return; store.del('lockHash'); store.del('bioId'); toast('App lock is off'); vSettings(); },
   bio: async (el) => {
