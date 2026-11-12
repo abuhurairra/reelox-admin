@@ -1,7 +1,7 @@
 'use strict';
 /* Reelox Admin app. Talks to the Apps Script server (actions starting with "admin."). */
 const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
-const VERSION = '1.1.4';
+const VERSION = '1.1.5';
 const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 /* ---------- tiny helpers ---------- */
@@ -400,7 +400,7 @@ function addMoneySheet(type, preset) {
     }
   });
   if (st.currency === 'USD' && !st.rate) {
-    (async () => { try { const r = store.get('rate'); if (r && Date.now() - r.t < 6 * 3600 * 1000) st.rate = r.rate; else { const j = await api('rate'); st.rate = j.rate; store.set('rate', { rate: j.rate, t: Date.now() }); } } catch (err) { st.rate = 280; } if ($('#mBody', sheet)) redraw(); })();
+    (async () => { try { const r = store.get('rate'); if (r && Date.now() - r.t < 6 * 3600 * 1000) st.rate = r.rate; else { const j = await api('rate'); st.rate = j.rate; store.set('rate', { rate: j.rate, t: Date.now() }); } } catch (err) { st.rate = 280; } const ri = $('#mRate', body); if (ri) { ri.value = st.rate; calc(); } })();
   }
   if (st.currency === 'USD') calc();
 }
