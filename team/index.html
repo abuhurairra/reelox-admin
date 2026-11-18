@@ -52,7 +52,7 @@ async function showLogin(msg) {
   const pre = new URLSearchParams(location.search).get('name') || store.get('name') || '';
   $('#view').innerHTML = '<div class="center-screen"><div class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><h1 class="title">My dashboard</h1><p class="sub" style="margin:0">Your attendance, tasks and the team leaderboard</p>' +
     '<form id="lf" novalidate><label class="field">Your name<select class="input" id="ln"><option value="">Loading names...</option></select></label>' +
-    '<label class="field">Your PIN<input class="input" id="lp" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></label><p class="err" id="le" role="alert">' + esc(msg || '') + '</p><button class="btn pri block" type="submit" id="lb">Open my dashboard</button></form></div>';
+    '<label class="field">Your PIN<input class="input" id="lp" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" name="rx-pin" style="-webkit-text-security:disc;letter-spacing:.3em"></label><p class="err" id="le" role="alert">' + esc(msg || '') + '</p><button class="btn pri block" type="submit" id="lb">Open my dashboard</button></form></div>';
   try {
     const j = await call('names');
     $('#ln').innerHTML = '<option value="">Pick your name</option>' + j.names.map((n) => '<option' + (n === pre ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
