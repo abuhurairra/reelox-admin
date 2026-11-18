@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EFE9FF">
+<meta name="color-scheme" content="light dark">
+<title>Reelox · My dashboard</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../app.css">
+<style>
+  main { max-width: 1040px; padding-bottom: 48px; }
+  .rank { width: 36px; flex: none; text-align: center; font-size: 14px; font-weight: 600; color: var(--sub); }
+  .rank.medal { font-size: 20px; }
+  .me-row { background: var(--violet-soft); border-radius: 12px; padding-left: 8px; padding-right: 8px; }
+  .pts-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .pts-row:last-child { border-bottom: 0; }
+  .tiles5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .tiles4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .tiles5 .card, .tiles4 .card { padding: 12px; }
+  @media (max-width: 640px) { .tiles5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tiles4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .hero.purple { background: var(--violet); color: #fff; border-color: var(--violet); }
+  button.list-row:hover { background: var(--surface-2); }
+</style>
+</head>
+<body>
+<main id="view" tabindex="-1"><div class="center-screen"><p class="sub">Loading...</p></div></main>
+<script>
+'use strict';
+const API = 'https://script.google.com/macros/s/AKfycbyiY_4JR7Sls5neh_aR6px7hG9W-yG9YKbwjm31AhoeMcuIiqPxOzWF9WRaGavWC6Vn/exec';
+const FOLDER = 'https://drive.google.com/drive/folders/16rlTKzS4TO3tPrXtne_rq2nquq8HqW6T?usp=sharing';
+const $ = (s, el) => (el || document).querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = { get(k) { try { return JSON.parse(localStorage.getItem('rxt.' + k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem('rxt.' + k, JSON.stringify(v)); } catch (e) {} }, del(k) { try { localStorage.removeItem('rxt.' + k); } catch (e) {} } };
+const dayLabel = (ymd) => { if (!ymd) return ''; const p = ymd.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+const fmtPts = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+const medal = (r) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '#' + r;
+let state = { tab: 'me', data: null, open: null };
+
+async function call(action, extra) {
+  let res;
+  try { res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'team.' + action, name: store.get('name'), pin: store.get('pin') }, extra || {})) }); }
+  catch (e) { throw new Error('No internet. Check your connection and try again.'); }
+  const j = await res.json().catch(() => ({ ok: false, error: 'The server did not answer. Try again.' }));
+  if (!j.ok) throw new Error(j.error || 'Something went wrong.');
+  return j;
+}
+
+async function showLogin(msg) {
+  const pre = new URLSearchParams(location.search).get('name') || store.get('name') || '';
+  $('#view').innerHTML = '<div class="center-screen"><div class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><h1 class="title">My dashboard</h1><p class="sub" style="margin:0">Your attendance, tasks and the team leaderboard</p>' +
+    '<form id="lf" novalidate><label class="field">Your name<select class="input" id="ln"><option value="">Loading names...</option></select></label>' +
+    '<label class="field">Your PIN<input class="input" id="lp" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></label><p class="err" id="le" role="alert">' + esc(msg || '') + '</p><button class="btn pri block" type="submit" id="lb">Open my dashboard</button></form></div>';
+  try {
+    const j = await call('names');
+    $('#ln').innerHTML = '<option value="">Pick your name</option>' + j.names.map((n) => '<option' + (n === pre ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+    (pre ? $('#lp') : $('#ln')).focus();
+  } catch (e) { $('#le').textContent = e.message; }
+  $('#lf').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = $('#ln').value, pin = $('#lp').value.trim();
+    if (!name) { $('#le').textContent = 'Pick your name.'; return; }
+    if (!/^\d{4}$/.test(pin)) { $('#le').textContent = 'Type your 4-digit PIN.'; return; }
+    $('#lb').disabled = true; $('#lb').textContent = 'Opening...';
+    store.set('name', name); store.set('pin', pin);
+    try { await load(); } catch (err) { store.del('pin'); $('#lb').disabled = false; $('#lb').textContent = 'Open my dashboard'; $('#le').textContent = err.message; }
+  };
+}
+
+async function load() {
+  const d = await call('me');
+  state.data = d;
+  render();
+}
+
+function header(d) {
+  return '<header class="top"><div style="min-width:0"><div class="sub">My dashboard · ' + esc(d.label) + '</div><h1 class="title ellipsis">' + esc(d.name) + '</h1></div>' +
+    '<div class="row" style="gap:8px"><button type="button" class="iconbtn" id="rf" aria-label="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></button>' +
+    '<button type="button" class="btn sec" id="so">Sign out</button></div></header>' +
+    '<div class="seg" role="group" aria-label="Sections">' + [['me', 'Me'], ['tasks', 'My tasks'], ['board', 'Leaderboard']].map(([k, l]) => '<button type="button" data-tab="' + k + '" aria-pressed="' + (state.tab === k) + '">' + l + '</button>').join('') + '</div>';
+}
+
+function viewMe(d) {
+  const a = d.attendance, p = d.points;
+  let h = '<div class="tiles5"><div class="card"><div class="k">Present</div><div class="v">' + a.present + '</div></div>' +
+    '<div class="card"><div class="k">Lates</div><div class="v t-late">' + a.late + ' of ' + a.latesPerCut + '</div></div>' +
+    '<div class="card"><div class="k">Absent</div><div class="v t-bad">' + a.absent + '</div></div>' +
+    '<div class="card"><div class="k">Leave</div><div class="v">' + a.leave + '</div></div>' +
+    '<div class="card"><div class="k">Hours</div><div class="v">' + a.hours + '</div></div></div>';
+  if (a.latesToNextCut === 1) h += '<div class="banner warn"><b style="font-weight:600">1 more late = 1 day salary cut.</b><span>Office opens 11:00 AM · late after 11:20 AM</span></div>';
+  let cal = '';
+  for (let i = 0; i < a.firstDow; i++) cal += '<span></span>';
+  const today = new Date().getDate();
+  const word = { ok: 'On time', late: 'Late', absent: 'Absent', leave: 'Leave', off: 'Day off', wait: 'Not in yet', none: '', future: '' };
+  a.days.forEach((x) => { cal += '<button type="button" class="s-' + x.st + (x.d === today ? ' today' : '') + '"' + (x.st === 'future' || x.st === 'none' ? ' disabled' : '') + ' title="' + esc(word[x.st] + (x.in ? ' · in ' + x.in : '') + (x.lateMin ? ' · ' + x.lateMin + ' min late' : '')) + '" aria-label="' + x.d + ' ' + esc(word[x.st]) + '">' + x.d + '<i></i></button>'; });
+  h += '<div class="grid2"><section class="card"><div class="row between" style="margin-bottom:8px"><h2 class="h">My attendance</h2><span class="sub">only you can see this</span></div>' +
+    '<div class="cal-head" aria-hidden="true"><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div><div>S</div></div><div class="cal">' + cal + '</div>' +
+    '<div class="legend wrap"><span><i style="background:#17A05D"></i>On time</span><span><i style="background:#E8892B"></i>Late</span><span><i style="background:#E5484D"></i>Absent</span><span><i style="background:#5B8DEF"></i>Leave</span></div></section>';
+  h += '<section class="card"><div class="row between" style="margin-bottom:4px"><h2 class="h">My points · ' + (p ? p.total : 0) + '</h2>' + (p ? '<span class="pill vio">' + medal(p.rank) + ' of ' + p.of + '</span>' : '') + '</div>' +
+    (p && p.breakdown.length ? p.breakdown.map((b) => '<div class="pts-row"><span>' + esc(b.label) + '</span><b style="font-weight:600" class="' + (b.pts < 0 ? 't-bad' : 't-ok') + '">' + fmtPts(b.pts) + '</b></div>').join('') + '<div class="pts-row"><b style="font-weight:600">Total</b><b style="font-weight:600">' + p.total + '</b></div>'
+      : '<p class="sub" style="margin:8px 0 0">No points yet this month. Deliver tasks and check in on time to earn points.</p>') + '</section></div>';
+  return h;
+}
+
+function viewTasks(d) {
+  const w = d.work;
+  let h = '<div class="tiles4"><div class="card"><div class="k">Delivered this month</div><div class="v">' + w.delivered + '</div></div>' +
+    '<div class="card"><div class="k">On time</div><div class="v t-ok">' + (w.onTimePct == null ? '–' : w.onTimePct + '%') + '</div></div>' +
+    '<div class="card"><div class="k">Revisions per task</div><div class="v">' + (w.revAvg == null ? '–' : w.revAvg) + '</div></div>' +
+    '<div class="card"><div class="k">Open now</div><div class="v">' + w.open.length + '</div></div></div>';
+  h += '<a class="btn sec block" href="' + FOLDER + '" target="_blank" rel="noopener">All revision videos (Drive folder)</a>';
+  const pill = (t) => t.status === 'Revision' ? 'bad' : t.status === 'Working' ? 'vio' : 'grey';
+  h += '<div class="grid2"><section class="card tight"><div class="h" style="padding:12px 0 4px">Open tasks</div>' +
+    (w.open.length ? w.open.map((t) => '<div class="list-row" style="flex-wrap:wrap"><div class="grow"><div class="strong">' + esc(t.name) + '</div><div class="sub">' + esc([t.client, t.due ? 'due ' + dayLabel(t.due) : '', t.round && t.round !== 'No revision' ? t.round : ''].filter(Boolean).join(' · ')) + '</div></div><span class="pill ' + pill(t) + '">' + esc(t.status) + '</span>' +
+      (t.folder ? '<a class="btn pri" style="width:100%;height:40px" href="' + esc(t.folder) + '" target="_blank" rel="noopener">▶ Watch revision video' + (t.round && t.round !== 'No revision' ? ' (' + esc(t.round) + ')' : '') + '</a>' : '') + '</div>').join('')
+      : '<p class="sub" style="margin:4px 0 12px">No open tasks. Nice!</p>') + '</section>';
+  h += '<section class="card tight"><div class="h" style="padding:12px 0 4px">Delivered this month</div>' +
+    (w.recent.length ? w.recent.map((t) => '<div class="list-row"><div class="grow"><div class="strong ellipsis">' + esc(t.title) + '</div><div class="sub">' + esc([t.client, dayLabel(t.date), t.revisions ? t.revisions + (t.revisions === 1 ? ' revision' : ' revisions') : 'no revisions', t.onTime ? 'on time' : ''].filter(Boolean).join(' · ')) + '</div></div><b style="font-weight:600" class="' + (t.pts < 0 ? 't-bad' : 't-ok') + '">' + fmtPts(t.pts) + ' pts</b></div>').join('')
+      : '<p class="sub" style="margin:4px 0 12px">Nothing delivered yet this month.</p>') + '</section></div>';
+  return h;
+}
+
+function viewBoard(d) {
+  const b = d.board;
+  let h = '';
+  if (b.lastWinner) h += '<div class="banner">🏆 <span><b style="font-weight:600">' + esc(b.lastWinner.name) + '</b> won ' + esc(b.lastWinner.month) + ' with ' + b.lastWinner.pts + ' points</span></div>';
+  if (b.me) h += '<section class="hero purple"><div class="h">You\'re ' + medal(b.me.rank) + ' · ' + b.me.pts + ' pts</div><div style="font-size:12px;opacity:.85;margin-top:4px">' + (b.me.rank === 1 ? 'You\'re on top. Keep it up!' : b.me.behind + ' points behind ' + esc(b.me.aboveName) + '. One ad with no revisions is +5.') + '</div></section>';
+  const max = Math.max(1, ...b.rows.map((r) => r.pts));
+  h += '<div class="grid2"><section class="card"><div class="row between" style="margin-bottom:4px"><h2 class="h">' + esc(b.label) + ' leaderboard</h2><span class="sub">' + b.count + ' editors · resets on the 1st</span></div>' +
+    b.rows.map((r) => { const me = b.me && r.name === d.name; return '<button type="button" class="list-row' + (me ? ' me-row' : '') + '" data-who="' + esc(r.name) + '"><span class="rank' + (r.rank <= 3 ? ' medal' : '') + '">' + medal(r.rank) + '</span><span class="av">' + esc(r.initials) + '</span><div class="grow"><div class="row" style="gap:8px"><span class="strong ellipsis">' + esc(r.name) + (me ? ' (you)' : '') + '</span>' + (r.isNew ? '<span class="pill vio">New</span>' : '') + '</div><div class="barbox" style="margin-top:4px"><div class="bar" style="width:' + Math.max(2, Math.round(Math.max(0, r.pts) / max * 100)) + '%;' + (me ? '' : 'background:var(--bar-out)') + '"></div></div></div><b style="font-weight:600" class="num">' + r.pts + ' pts</b></button>'; }).join('') + '</section>';
+  const sel = b.rows.find((r) => r.name === state.open) || b.rows[0];
+  h += '<div class="stack">' + (sel ? '<section class="card"><div class="row"><span class="av">' + esc(sel.initials) + '</span><div><div class="strong">' + medal(sel.rank) + ' ' + esc(sel.name) + ' · ' + sel.pts + ' pts</div><div class="sub">Why this rank</div></div></div>' +
+    [['Tasks delivered', sel.tasks], ['On-time delivery', sel.onTimePct == null ? '–' : sel.onTimePct + '%'], ['Revisions per task', sel.revAvg == null ? '–' : sel.revAvg], ['Attendance points', fmtPts(sel.attend)]].map((x) => '<div class="pts-row"><span>' + x[0] + '</span><b style="font-weight:600">' + x[1] + '</b></div>').join('') + '</section>' : '') +
+    '<section class="card"><h2 class="h" style="margin-bottom:8px">How points work</h2><p class="sub" style="margin:0;line-height:1.6">Hook / short / other +1 · Ad +3 · Long form +5 · Approved with no revisions +2 · Delivered by the due date +1 · Each revision −0.5 · On-time day +0.5 · Late −1 · Absent without notice −3 · Approved leave 0</p></section></div></div>';
+  return h;
+}
+
+function render() {
+  const d = state.data;
+  $('#view').innerHTML = header(d) + (state.tab === 'me' ? viewMe(d) : state.tab === 'tasks' ? viewTasks(d) : viewBoard(d)) + '<p class="sub" style="text-align:center;margin:8px 0 0">Updates every hour from Notion and attendance.</p>';
+  document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { state.tab = b.dataset.tab; render(); });
+  document.querySelectorAll('[data-who]').forEach((b) => b.onclick = () => { state.open = b.dataset.who; render(); });
+  $('#rf').onclick = async () => { $('#rf').disabled = true; try { await load(); } catch (e) { alert(e.message); $('#rf').disabled = false; } };
+  $('#so').onclick = () => { store.del('pin'); state.data = null; showLogin(); };
+}
+
+const tabParam = new URLSearchParams(location.search).get('tab');
+if (tabParam === 'board' || tabParam === 'tasks') state.tab = tabParam;
+const urlName = new URLSearchParams(location.search).get('name');
+if (store.get('pin') && (!urlName || urlName === store.get('name'))) load().catch((e) => showLogin(e.message)); else showLogin();
+</script>
+</body>
+</html>
